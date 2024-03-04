@@ -1,0 +1,57 @@
+module Main where
+
+import Daml.Script
+import DA.Date
+
+template LoanRequest
+  with
+    borrower : Party
+    lender : Party
+    amount : Decimal
+    interestRate : Decimal
+  where
+    signatory borrower
+    observer lender
+
+    choice AcceptLoan : ContractId LoanAgreement
+      with
+        dueDate : Date
+      controller lender
+      do
+        create LoanAgreement with
+          lender = lender
+          borrower = borrower
+          amount = amount
+          interestRate = interestRate
+          dueDate = dueDate
+
+template LoanAgreement
+  with
+    lender : Party
+    borrower : Party
+    amount : Decimal
+    interestRate : Decimal
+    dueDate : Date
+  where
+    signatory lender, borrower
+
+setup : Script ()
+setup = script do
+  alice <- allocatePartyWithHint "Alice" (PartyIdHint "Alice")
+  bob <- allocatePartyWithHint "Bob" (PartyIdHint "Bob")
+  aliceId <- validateUserId "alice"
+  bobId <- validateUserId "bob"
+  createUser (User aliceId (Some alice)) [CanActAs alice]
+  createUser (User bobId (Some bob)) [CanActAs bob]
+  loanReqCid <- submit alice do
+    createCmd LoanRequest with
+      borrower = alice
+      lender = bob
+      amount = 10000.0
+      interestRate = 5.0
+
+  submit bob do
+    exerciseCmd loanReqCid AcceptLoan with
+      dueDate = date 2024 Dec 31
+
+  return ()
